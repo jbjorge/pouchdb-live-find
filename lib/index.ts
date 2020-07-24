@@ -1,14 +1,48 @@
-'use strict';
-var EventEmitter = require('events');
-var helpers = require('./helpers');
-var collate = require('pouchdb-collate').collate;
-var selectorCore = require('pouchdb-selector-core');
-var utils = require('./utils');
-var getValue = selectorCore.getValue;
-var massageSelector = selectorCore.massageSelector;
-var massageSort = utils.massageSort;
+import { EventEmitter } from 'events';
+import { createFieldSorter, memoryFilter } from './helpers';
+import { massageSelector } from 'pouchdb-selector-core';
+import { massageSort, pick } from './utils';
 
-function liveFind(requestDef) {
+export interface RequestDef {
+  aggregate: boolean;
+  fields: string[];
+  selector: PouchDB.Find.Selector;
+  sort: any;
+  skip: string | number;
+  limit: string | number;
+}
+
+export interface PaginationOptions {
+  skip: string | number;
+  limit: string | number;
+  sort: string[]
+}
+
+interface Action {
+  id: string;
+  rev: string;
+  doc: {
+    _id: string;
+    _rev: string;
+  }
+}
+interface RemoveAction extends Action { action: 'REMOVE' }
+interface AddAction extends Action { action: 'ADD' }
+interface UpdateAction extends Action { action: 'UPDATE' }
+
+export interface Emitter<T = {}> extends EventEmitter {
+  cancel: () => void;
+  then: () => void;
+  catch: () => void;
+  paginate: (options: PaginationOptions) => void;
+  sort: (list: any) => any;
+  onUpdate: (cb: (update: AddAction | UpdateAction | RemoveAction, aggregate?: T[]) => void) => void;
+	onReady: (cb: () => void) => void;
+	onCancelled: (cb: () => void) => void;
+	onError: (cb: (error: Error) => void) => void;
+}
+
+export function liveFind<T>(requestDef: RequestDef): Emitter {
 
   if(typeof this.find !== 'function') {
     throw new Error('ERROR: PouchDB Find is a requirement for LiveFind and must be loaded first.');
@@ -17,7 +51,11 @@ function liveFind(requestDef) {
   var db = this;
   var cancelled = false;
   var lookup = {};
-  var emitter = new EventEmitter();
+  var emitter = new EventEmitter() as Emitter<T>;
+  emitter.onUpdate = emitter.on.bind(emitter, 'update');
+	emitter.onReady = emitter.on.bind(emitter, 'ready');
+	emitter.onCancelled = emitter.on.bind(emitter, 'cancelled');
+	emitter.onError = emitter.on.bind(emitter, 'error');
   var docList = [];
   var aggregate = requestDef.aggregate || false;
 
@@ -43,10 +81,10 @@ function liveFind(requestDef) {
   var sort, sortFn;
   if(requestDef.sort) {
     sort = massageSort(requestDef.sort);
-    sortFn = helpers.createFieldSorter(sort);
+    sortFn = createFieldSorter(sort);
   }
-  var skip = parseInt(requestDef.skip, 10) || 0;
-  var limit = parseInt(requestDef.limit, 10) || 0;
+  var skip = parseInt(requestDef.skip as string, 10) || 0;
+  var limit = parseInt(requestDef.limit as string, 10) || 0;
   var findRequest = {
     selector: selector,
     // sort: sort,
@@ -130,7 +168,7 @@ function liveFind(requestDef) {
   }
 
   function filterDoc(doc) {
-    var result = helpers.memoryFilter([doc], {selector: selector});
+    var result = memoryFilter([doc], {selector: selector});
     if(result.length) {
       return result[0];
     }
@@ -139,7 +177,7 @@ function liveFind(requestDef) {
 
   function pickFields(doc) {
     if (fields) {
-      var output = utils.pick(doc, fields);
+      var output = pick(doc, fields);
       if(stripId) {
         delete output._id;
       }
@@ -200,7 +238,7 @@ function liveFind(requestDef) {
       });
       list = formatList(docList);
     }
-    emitter.emit('update', { action: 'REMOVE', id: id, rev: rev, doc: doc }, list);
+    emitter.emit('update', { action: 'REMOVE', id, rev, doc }, list);
   }
 
   function addAction(doc, id, rev) {
@@ -209,7 +247,7 @@ function liveFind(requestDef) {
       docList = docList.concat(doc);
       list = formatList(docList);
     }
-    emitter.emit('update', { action: 'ADD', id: id, rev: rev, doc: doc }, list);
+    emitter.emit('update', { action: 'ADD', id, rev, doc }, list);
   }
 
   function updateAction(doc, id, rev) {
@@ -220,17 +258,8 @@ function liveFind(requestDef) {
       });
       list = formatList(docList);
     }
-    emitter.emit('update', { action: 'UPDATE', id: id, rev: rev, doc: doc }, list);
+    emitter.emit('update', { action: 'UPDATE', id, rev, doc }, list);
   }
-
-  /* function sortList(list) {
-    list = list.sort(sortFn);
-    if (typeof sort[0] !== 'string' &&
-      getValue(sort[0]) === 'desc') {
-      list = list.reverse();
-    }
-    return list;
-  } */
 
   function sortList(list) {
     return list.sort(sortFn);
@@ -251,29 +280,27 @@ function liveFind(requestDef) {
     return list;
   }
 
-  function paginate(options) {
+  function paginate(options: PaginationOptions) {
     if(!aggregate || !options || typeof options !== 'object') {
       return;
     }
     if(options.skip != null) {
-      skip = parseInt(options.skip, 10) || 0;
+      skip = parseInt(options.skip as string, 10) || 0;
     }
     if(options.limit != null) {
-      limit = parseInt(options.limit, 10) || 0;
+      limit = parseInt(options.limit as string, 10) || 0;
     }
     if(options.sort && options.sort instanceof Array) {
       sort = massageSort(options.sort);
-      sortFn = helpers.createFieldSorter(sort);
+      sortFn = createFieldSorter(sort);
     }
     return formatList(docList);
   }
-
   return emitter;
-
 }
 
-exports.liveFind = liveFind;
+export default { liveFind };
 
-if (typeof window !== 'undefined' && window.PouchDB) {
-  window.PouchDB.plugin(exports);
+if (typeof window !== 'undefined' && (window as any).PouchDB) {
+  (window as any).PouchDB.plugin(liveFind);
 }

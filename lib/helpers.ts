@@ -1,15 +1,9 @@
 'use strict';
-var collate = require('pouchdb-collate').collate;
-var selectorCore = require('pouchdb-selector-core');
-var filterInMemoryFields = selectorCore.filterInMemoryFields;
-var utils = require('./utils');
-var compare = selectorCore.compare;
-var getUserFields = utils.getUserFields;
-var getKey = selectorCore.getKey;
-var getValue = selectorCore.getValue;
-var parseField = selectorCore.parseField;
+import { collate } from 'pouchdb-collate';
+import { filterInMemoryFields, compare, getKey, getValue, parseField } from 'pouchdb-selector-core';
+import { getUserFields } from './utils';
 
-exports.memoryFilter = function(docs, requestDef) {
+export const memoryFilter = function(docs, requestDef) {
   var userFieldsRes = getUserFields(requestDef.selector, requestDef.sort);
   var userFields = userFieldsRes.fields;
   var rows = docs.map(function(doc) { return {doc: doc}; });
@@ -20,7 +14,7 @@ exports.memoryFilter = function(docs, requestDef) {
 };
 
 // create a comparator based on the sort object
-exports.createFieldSorter = function(sort) {
+export const createFieldSorter = function(sort) {
 
   function getFieldValuesAsArray(doc) {
     return sort.map(function (sorting) {

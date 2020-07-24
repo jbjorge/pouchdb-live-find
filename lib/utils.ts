@@ -1,18 +1,12 @@
-'use strict';
-
-var selectorCore = require('pouchdb-selector-core');
-var getKey = selectorCore.getKey;
-var getFieldFromDoc = selectorCore.getFieldFromDoc;
-var setFieldInDoc = selectorCore.setFieldInDoc;
-var parseField = selectorCore.parseField;
+import { getKey, getFieldFromDoc, setFieldInDoc, parseField } from 'pouchdb-selector-core';
 
 // determine the maximum number of fields
 // we're going to need to query, e.g. if the user
 // has selection ['a'] and sorting ['a', 'b'], then we
 // need to use the longer of the two: ['a', 'b']
-exports.getUserFields = function(selector, sort) {
+export const getUserFields = function (selector, sort) {
   var selectorFields = Object.keys(selector);
-  var sortFields = sort? sort.map(getKey) : [];
+  var sortFields = sort ? sort.map(getKey) : [];
   var userFields;
   if (selectorFields.length >= sortFields.length) {
     userFields = selectorFields;
@@ -46,7 +40,7 @@ exports.getUserFields = function(selector, sort) {
 };
 
 // normalize the "sort" value
-exports.massageSort = function(sort) {
+export const massageSort = function (sort) {
   if (!Array.isArray(sort)) {
     throw new Error('invalid sort json - should be an array');
   }
@@ -63,7 +57,7 @@ exports.massageSort = function(sort) {
 
 // Selects a list of fields defined in dot notation from one doc
 // and copies them to a new doc. Like underscore _.pick but supports nesting.
-exports.pick = function(obj, arr) {
+export const pick = function (obj, arr): any {
   var res = {};
   for (var i = 0, len = arr.length; i < len; i++) {
     var parsedField = parseField(arr[i]);
